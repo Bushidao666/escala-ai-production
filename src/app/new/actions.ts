@@ -725,22 +725,23 @@ export async function createCreativeVariations(formData: CreateCreativeData) {
     throw new Error(`Erro de validação: ${errorMessages}`);
   }
 
-  const quantity = validationResult.data.quantity;
+  // 🎯 CORREÇÃO: Remover o campo 'quantity' do objeto antes de salvar no DB
+  const { quantity, ...creativeBaseData } = validationResult.data;
   const createdCreatives = [];
   const createdJobs = [];
 
   // Criar múltiplas variações
   for (let i = 1; i <= quantity; i++) {
     const variationTitle = quantity > 1 
-      ? `${validationResult.data.title} - Variação ${i}`
-      : validationResult.data.title;
+      ? `${creativeBaseData.title} - Variação ${i}`
+      : creativeBaseData.title;
 
     const creativeData = {
-      ...validationResult.data,
+      ...creativeBaseData, // Usar o objeto sem o campo 'quantity'
       title: variationTitle,
       user_id: user.id,
       status: 'queued' as const,
-      product_images: JSON.stringify(validationResult.data.product_images || []),
+      product_images: JSON.stringify(creativeBaseData.product_images || []),
     };
 
     console.log(`Creating variation ${i}/${quantity}: ${variationTitle}`);
