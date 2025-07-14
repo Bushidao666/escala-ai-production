@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -15,26 +15,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // 🚀 NOVAS IMPORTAÇÕES para múltiplos formatos
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ImageUpload, type UploadedImage } from "@/components/ui/image-upload";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { ColorPicker } from "@/components/ui/color-picker";
 import { 
   Sparkles, 
   Image as ImageIcon, 
   Palette, 
-  Type, 
-  Monitor,
   Save, 
   Send,
   RotateCcw,
   Loader2,
   Wand2,
   Eye,
-  Info,
-  Layers,
   Settings2,
   // 🚀 NOVOS ÍCONES para múltiplos formatos
   Grid,
-  Zap,
   Target
 } from "lucide-react";
 import { toast } from "sonner";
@@ -46,18 +41,16 @@ import {
   FORMAT_LABELS,
   CREATIVE_STYLES,
   // 🚀 NOVAS IMPORTAÇÕES para múltiplos formatos
-  createCreativeRequestSchema,
   type CreateCreativeRequestData,
-  defaultCreativeRequestValues,
   MULTI_FORMAT_PRESETS
 } from "@/lib/schemas/creative";
 import { 
-  createCreative, 
   saveDraft, 
   getUserDefaults,
-  debugAuth,
   // 🚀 NOVA IMPORTAÇÃO para requests multi-formato
-  createCreativeRequest
+  createCreativeRequest,
+  // 🚀 NOVA IMPORTAÇÃO para múltiplas variações
+  createCreativeVariations
 } from "./actions";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { createClient } from "@/lib/supabase/client";
@@ -72,7 +65,7 @@ export default function NewCreativePage() {
   const [isDraftSaving, setIsDraftSaving] = useState(false);
   const [isFetchingDefaults, setIsFetchingDefaults] = useState(true);
   const [activeTab, setActiveTab] = useState("basic");
-  const [userDefaults, setUserDefaults] = useState<any>(null);
+  const [userDefaults] = useState<any>(null);
   
   // 🚀 NOVO: Estado para controlar modo de múltiplos formatos
   const [isMultiFormat, setIsMultiFormat] = useState(false);
@@ -97,7 +90,7 @@ export default function NewCreativePage() {
     mode: "onChange",
   });
 
-  const { control, handleSubmit, reset, watch, setValue, formState: { errors, isDirty } } = form;
+  const { control, handleSubmit, reset, watch, formState: { isDirty } } = form;
 
   // Watch para preview das informações
   const watchedValues = watch();
@@ -126,16 +119,16 @@ export default function NewCreativePage() {
     fetchDefaults();
   }, [reset]);
 
-  // 🚀 NOVO: Submissão que suporta ambos os modos
+  // 🚀 NOVO: Submissão melhorada - sem redirect automático para melhor UX
   const onSubmit = async (data: CreateCreativeData) => {
     setIsLoading(true);
     
-    if (isMultiFormat) {
-      toast.info("Criando múltiplos criativos...", {
-        description: `Gerando ${selectedFormats.length} formato(s)`
-      });
+    try {
+      if (isMultiFormat) {
+        toast.info("Criando múltiplos criativos...", {
+          description: `Gerando ${selectedFormats.length} formato(s)`
+        });
 
-      try {
         // Converte data para CreateCreativeRequestData
         const requestData: CreateCreativeRequestData = {
           title: data.title,
@@ -156,29 +149,41 @@ export default function NewCreativePage() {
         toast.success("Múltiplos criativos criados com sucesso!", {
           description: "Redirecionando para a fila de processamento..."
         });
-      } catch (error: any) {
-        toast.error("Erro ao criar criativos", {
-          description: error.message
+      } else {
+        // 🎯 USAR NOVA ACTION para múltiplas variações sem redirect
+        const quantityText = data.quantity > 1 
+          ? `${data.quantity} variações` 
+          : "criativo";
+        
+        toast.info(`Criando ${quantityText}...`, {
+          description: "Adicionando à fila de processamento"
         });
-      }
-    } else {
-      toast.info("Criando criativo...", {
-        description: "Adicionando à fila de processamento"
-      });
 
-      try {
-        await createCreative(data);
-        toast.success("Criativo criado com sucesso!", {
-          description: "Redirecionando para a fila de processamento..."
+        const result = await createCreativeVariations(data);
+        
+        toast.success(`${result.created_count} criativo(s) criado(s) com sucesso!`, {
+          description: "Verifique a fila para acompanhar o processamento"
         });
-      } catch (error: any) {
-        toast.error("Erro ao criar criativo", {
-          description: error.message
+        
+        // 🚀 MELHOR UX: Limpar apenas campos específicos, manter configurações
+        reset({
+          ...data,
+          title: "",
+          prompt: "",
+          description: "",
+          headline: "",
+          sub_headline: "",
+          cta_text: "",
         });
       }
+    } catch (error: any) {
+      toast.error("Erro ao criar criativo(s)", {
+        description: error.message
+      });
+    } finally {
+      // 🎯 SOLUÇÃO: Loading volta ao normal imediatamente após envio para fila
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   // Salvar como rascunho
@@ -781,36 +786,72 @@ export default function NewCreativePage() {
                               )}
                             </div>
                           ) : (
-                            <FormField
-                              control={control}
-                              name="format"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel className="text-white font-medium text-sm">
-                                    Formato
-                                  </FormLabel>
-                                  <Select onValueChange={field.onChange} value={field.value}>
+                            <>
+                              <FormField
+                                control={control}
+                                name="format"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-white font-medium text-sm">
+                                      Formato
+                                    </FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                      <FormControl>
+                                        <SelectTrigger className="input-glass h-10">
+                                          <SelectValue placeholder="Selecione um formato" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent className="bg-brand-gray-800 border-brand-gray-700">
+                                        {Object.entries(FORMAT_LABELS).map(([key, label]) => (
+                                          <SelectItem 
+                                            key={key} 
+                                            value={key}
+                                            className="text-white hover:bg-brand-gray-700"
+                                          >
+                                            {label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              {/* 🚀 NOVO: Campo de Quantidade de Variações */}
+                              <FormField
+                                control={control}
+                                name="quantity"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-white font-medium text-sm">
+                                      Quantidade de Variações
+                                    </FormLabel>
                                     <FormControl>
-                                      <SelectTrigger className="input-glass h-10">
-                                        <SelectValue placeholder="Selecione um formato" />
-                                      </SelectTrigger>
+                                      <div className="relative">
+                                        <Input
+                                          type="number"
+                                          min={1}
+                                          max={10}
+                                          {...field}
+                                          onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                                          className="input-glass h-10 text-white pr-16"
+                                          placeholder="1"
+                                        />
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center space-x-1">
+                                          <Target className="w-4 h-4 text-brand-neon-green" />
+                                          <span className="text-xs text-brand-gray-400">max 10</span>
+                                        </div>
+                                      </div>
                                     </FormControl>
-                                    <SelectContent className="bg-brand-gray-800 border-brand-gray-700">
-                                      {Object.entries(FORMAT_LABELS).map(([key, label]) => (
-                                        <SelectItem 
-                                          key={key} 
-                                          value={key}
-                                          className="text-white hover:bg-brand-gray-700"
-                                        >
-                                          {label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
+                                    <FormDescription className="text-brand-gray-400 text-xs">
+                                      Quantas variações do mesmo criativo você quer gerar (1-10)
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </>
                           )}
 
                           <FormField
@@ -1013,6 +1054,16 @@ export default function NewCreativePage() {
                           )}
                         </div>
 
+                        {/* 🚀 NOVO: Mostrar quantidade quando maior que 1 */}
+                        {!isMultiFormat && watchedValues.quantity > 1 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-brand-gray-400 text-sm">Variações:</span>
+                            <Badge className="bg-brand-neon-green/20 text-brand-neon-green border-brand-neon-green/50 text-xs">
+                              {watchedValues.quantity}x
+                            </Badge>
+                          </div>
+                        )}
+
                         {watchedValues.primary_color && (
                           <div className="flex items-center justify-between">
                             <span className="text-brand-gray-400 text-sm">Cor Primária:</span>
@@ -1141,7 +1192,7 @@ export default function NewCreativePage() {
                           {isLoading ? (
                             <>
                               <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                              {isMultiFormat ? "Criando múltiplos..." : "Criando..."}
+                              {isMultiFormat ? "Criando múltiplos..." : `Criando ${watchedValues.quantity > 1 ? `${watchedValues.quantity} variações` : 'criativo'}...`}
                             </>
                           ) : (
                             <>
@@ -1152,8 +1203,17 @@ export default function NewCreativePage() {
                                 </>
                               ) : (
                                 <>
-                                  <Send className="w-5 h-5 mr-2" />
-                                  Gerar Criativo
+                                  {watchedValues.quantity > 1 ? (
+                                    <>
+                                      <Target className="w-5 h-5 mr-2" />
+                                      Gerar {watchedValues.quantity} Variações
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Send className="w-5 h-5 mr-2" />
+                                      Gerar Criativo
+                                    </>
+                                  )}
                                 </>
                               )}
                             </>

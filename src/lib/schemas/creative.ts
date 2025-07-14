@@ -85,6 +85,13 @@ export const createCreativeSchema = z.object({
     .optional()
     .or(z.literal("")),
   product_images: z.array(ProductImageSchema).default([]),
+
+  // 🚀 NOVO: Quantidade de variações do mesmo criativo
+  quantity: z.number()
+    .int("Quantidade deve ser um número inteiro")
+    .min(1, "Quantidade deve ser pelo menos 1")
+    .max(10, "Máximo 10 variações por vez")
+    .default(1),
 });
 
 // 🚀 NOVO: Schema para criação de solicitações de MÚLTIPLOS FORMATOS
@@ -282,6 +289,7 @@ export const defaultCreativeValues: CreateCreativeData = {
   headline: "",
   sub_headline: "",
   cta_text: "",
+  quantity: 1,
 };
 
 // 🚀 NOVO: Valores padrão para creative request (múltiplos formatos)
