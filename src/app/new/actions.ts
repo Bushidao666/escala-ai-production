@@ -6,10 +6,70 @@ import { redirect } from "next/navigation";
 import { 
   createCreativeSchema, 
   type CreateCreativeData,
+  FORMAT_TO_SIZE_MAP,
   // 🚀 NOVAS IMPORTAÇÕES para múltiplos formatos
   createCreativeRequestSchema,
   type CreateCreativeRequestData
 } from "@/lib/schemas/creative";
+
+/**
+ * 🆕 FUNÇÃO AUXILIAR: Aplica variações ao prompt baseado no estilo selecionado
+ */
+function applyVariationToPrompt(
+  originalPrompt: string, 
+  variationStyle: string, 
+  index: number, 
+  total: number
+): string {
+  const basePrompt = originalPrompt.trim();
+  
+  switch (variationStyle) {
+    case 'creative_diversity':
+      const diversityPrefixes = [
+        "Creative interpretation: ",
+        "Artistic vision: ",
+        "Unique perspective: ",
+        "Alternative view: ",
+        "Fresh take: ",
+        "Bold interpretation: ",
+        "Innovative approach: ",
+        "Modern twist: "
+      ];
+      const prefixIndex = (index - 1) % diversityPrefixes.length;
+      return `${diversityPrefixes[prefixIndex]}${basePrompt}`;
+      
+    case 'prompt_variations':
+      const promptModifiers = [
+        ", with vibrant colors and dynamic composition",
+        ", featuring soft lighting and elegant atmosphere",
+        ", with bold contrasts and energetic feel",
+        ", showcasing minimalist design and clean aesthetics",
+        ", incorporating rich textures and warm tones",
+        ", with dramatic lighting and cinematic quality",
+        ", featuring playful elements and joyful mood",
+        ", with sophisticated styling and premium feel"
+      ];
+      const modifierIndex = (index - 1) % promptModifiers.length;
+      return `${basePrompt}${promptModifiers[modifierIndex]}`;
+      
+    case 'style_variations':
+      const styleVariations = [
+        "In a photorealistic style: ",
+        "In a artistic illustration style: ",
+        "In a modern digital art style: ",
+        "In a vintage retro style: ",
+        "In a minimalist contemporary style: ",
+        "In a bold graphic design style: ",
+        "In a watercolor painting style: ",
+        "In a professional commercial style: "
+      ];
+      const styleIndex = (index - 1) % styleVariations.length;
+      return `${styleVariations[styleIndex]}${basePrompt}`;
+      
+    default:
+      return basePrompt;
+  }
+}
 
 /**
  * Faz o upload de um arquivo para o Supabase Storage e retorna um objeto completo do tipo `UploadedImage`, incluindo `url`, `filename`, `size` e `type`.
@@ -191,61 +251,107 @@ export async function createCreative(formData: CreateCreativeData) {
 
   console.log("Data to be saved:", JSON.stringify(creativeData, null, 2));
 
-  // Inicia transação para criar criativo + job na fila
-  const { data: creative, error: creativeError } = await supabase
-    .from("creatives")
-    .insert(creativeData)
-    .select()
-    .single();
+  // 🆕 NOVA LÓGICA: Suporte a quantidade e variações para modo single format
+  const quantity = validationResult.data.quantity || 1;
+  const enableVariations = validationResult.data.enable_variations || false;
+  const variationStyle = validationResult.data.variation_style || 'creative_diversity';
+  
+  console.log(`Creating ${quantity} creative(s) for single format mode`);
+  console.log(`Variations enabled: ${enableVariations}, Style: ${variationStyle}`);
 
-  if (creativeError) {
-    console.error("createCreative: Failed to create creative:", creativeError);
-    throw new Error("Não foi possível criar o criativo.");
-  }
-
-  console.log(`Creative created successfully with ID: ${creative.id}`);
-
-  // Cria job na fila de processamento
-  const { error: jobError } = await supabase
-    .from("queue_jobs")
-    .insert({
-      creative_id: creative.id,
-      user_id: user.id,
-      status: 'pending',
-      priority: 5, // Prioridade padrão
-    });
-
-  if (jobError) {
-    console.error("createCreative: Failed to create queue job:", jobError);
+  const createdCreatives = [];
+  
+  // Cria a quantidade especificada de criativos
+  for (let i = 1; i <= quantity; i++) {
+    console.log(`Creating creative ${i}/${quantity}`);
     
-    // Rollback: remove o criativo criado se falhar ao criar o job
-    await supabase
+    // Prepara dados específicos para esta variação
+    let variantData = { ...creativeData };
+    
+    if (quantity > 1) {
+      variantData.title = `${creativeData.title} (${i}/${quantity})`;
+      
+      if (enableVariations) {
+        variantData.prompt = applyVariationToPrompt(creativeData.prompt, variationStyle, i, quantity);
+      }
+    }
+    
+    // Remove campos de controle (não devem ir para o banco)
+    const { quantity: _, enable_variations: __, variation_style: ___, ...cleanData } = variantData;
+
+    // Cria criativo individual
+    const { data: creative, error: creativeError } = await supabase
       .from("creatives")
-      .delete()
-      .eq("id", creative.id);
-    
-    throw new Error("Não foi possível adicionar o criativo à fila de processamento.");
+      .insert(cleanData)
+      .select()
+      .single();
+
+    if (creativeError) {
+      console.error("createCreative: Failed to create creative:", creativeError);
+      
+      // Rollback: remove criativos já criados
+      for (const prevCreative of createdCreatives) {
+        await supabase.from("creatives").delete().eq("id", prevCreative.id);
+        await supabase.from("queue_jobs").delete().eq("creative_id", prevCreative.id);
+      }
+      
+      throw new Error(`Não foi possível criar o criativo ${i}/${quantity}.`);
+    }
+
+    console.log(`Creative ${i}/${quantity} created successfully with ID: ${creative.id}`);
+    createdCreatives.push(creative);
+
+    // Cria job na fila de processamento
+    const { error: jobError } = await supabase
+      .from("queue_jobs")
+      .insert({
+        creative_id: creative.id,
+        user_id: user.id,
+        status: 'pending',
+        priority: 5, // Prioridade padrão
+      });
+
+    if (jobError) {
+      console.error("createCreative: Failed to create queue job:", jobError);
+      
+      // Rollback: remove criativos já criados
+      for (const prevCreative of createdCreatives) {
+        await supabase.from("creatives").delete().eq("id", prevCreative.id);
+        await supabase.from("queue_jobs").delete().eq("creative_id", prevCreative.id);
+      }
+      
+      throw new Error(`Não foi possível adicionar o criativo ${i}/${quantity} à fila de processamento.`);
+    }
+
+    console.log(`Queue job created successfully for creative ${i}/${quantity}`);
   }
 
-  console.log("Queue job created successfully");
-
-  // 🚀 Auto-trigger do processamento
-  try {
-    console.log("Auto-triggering queue processing...");
-    await triggerQueueProcessing();
-    console.log("Queue processing triggered successfully");
-  } catch (error) {
-    console.warn("Failed to auto-trigger processing, will need manual trigger:", error);
-    // Não falhamos a criação se o trigger automático falhar
-  }
+  console.log(`All ${quantity} creatives created successfully`);
 
   console.log("--- [ACTION END: createCreative] ---\n");
 
   revalidatePath("/new");
   revalidatePath("/queue");
   
-  // Redireciona para a fila para acompanhar o processamento
-  redirect("/queue");
+  // 🚀 Auto-trigger do processamento (NÃO-BLOQUEANTE)
+  // Executa em background após retornar a resposta
+  Promise.resolve().then(async () => {
+    try {
+      console.log("Auto-triggering queue processing in background...");
+      await triggerQueueProcessing();
+      console.log("Queue processing triggered successfully");
+    } catch (error) {
+      console.warn("Failed to auto-trigger processing, will need manual trigger:", error);
+    }
+  });
+  
+  // Retorna sucesso imediatamente sem aguardar o trigger
+  return { 
+    success: true, 
+    creative_ids: createdCreatives.map(c => c.id),
+    creatives_count: createdCreatives.length,
+    message: `${createdCreatives.length} criativo(s) criado(s) com sucesso e adicionado(s) à fila de processamento!`
+  };
 }
 
 /**
@@ -600,37 +706,64 @@ export async function createCreativeRequest(formData: CreateCreativeRequestData)
   // 🎯 ETAPA 2: Buscar configurações padrão do usuário
   const userDefaults = await getUserDefaults();
 
-  // 🎯 ETAPA 3: Criar um creative para cada formato solicitado
+  // 🎯 ETAPA 3: Criar criativos para cada formato × quantidade solicitada
   const createdCreatives = [];
   const createdJobs = [];
+  const quantity = validationResult.data.quantity || 1;
+  const enableVariations = validationResult.data.enable_variations || false;
+  const variationStyle = validationResult.data.variation_style || 'creative_diversity';
+
+  console.log(`Creating ${quantity} creative(s) for each of ${validationResult.data.requested_formats.length} format(s)`);
+  console.log(`Variations enabled: ${enableVariations}, Style: ${variationStyle}`);
 
   for (const format of validationResult.data.requested_formats) {
-    console.log(`Creating creative for format: ${format}`);
+    console.log(`Creating ${quantity} creative(s) for format: ${format}`);
 
-         // Dados do creative individual (baseado no request)
-     const creativeData = {
-       title: `${requestData.title} - ${format}`,
-       description: requestData.description || undefined,
-       prompt: requestData.prompt,
-       style: requestData.style || "Moderno",
-       primary_color: requestData.primary_color || undefined,
-       secondary_color: requestData.secondary_color || undefined,
-       headline: requestData.headline || undefined,
-       sub_headline: requestData.sub_headline || undefined,
-       cta_text: requestData.cta_text || undefined,
-       logo_url: requestData.logo_url || undefined,
-       product_images: requestData.product_images,
-      format: format,
-      // Aplicar configurações padrão do usuário
-      quality: userDefaults.quality,
-      output_format: userDefaults.output_format,
-      output_compression: userDefaults.output_compression,
-      background: userDefaults.background,
-      // Metadados
-      user_id: user.id,
-      request_id: creativeRequest.id, // 🔗 Link para o request
-      status: 'queued' as const,
-    };
+    // Cria a quantidade especificada de criativos para este formato
+    for (let i = 1; i <= quantity; i++) {
+      console.log(`Creating creative ${i}/${quantity} for format: ${format}`);
+
+       // 🆕 NOVA LÓGICA: Modificar título e prompt baseado na variação
+       let creativeTitle = `${requestData.title} - ${format}`;
+       let creativePrompt = requestData.prompt;
+       
+       if (quantity > 1) {
+         creativeTitle += ` (${i}/${quantity})`;
+         
+         if (enableVariations) {
+           // Aplica variações baseadas no estilo selecionado
+           creativePrompt = applyVariationToPrompt(requestData.prompt, variationStyle, i, quantity);
+         }
+       }
+
+       // Dados do creative individual (baseado no request)
+       const creativeData = {
+         title: creativeTitle,
+         description: requestData.description || undefined,
+         prompt: creativePrompt,
+         style: requestData.style || "Moderno",
+         primary_color: requestData.primary_color || undefined,
+         secondary_color: requestData.secondary_color || undefined,
+         headline: requestData.headline || undefined,
+         sub_headline: requestData.sub_headline || undefined,
+         cta_text: requestData.cta_text || undefined,
+         logo_url: requestData.logo_url || undefined,
+         product_images: requestData.product_images,
+         format: format,
+         // Aplicar configurações padrão do usuário
+         quality: userDefaults.quality,
+         output_format: userDefaults.output_format,
+         output_compression: userDefaults.output_compression,
+         background: userDefaults.background,
+         // Metadados
+         user_id: user.id,
+         request_id: creativeRequest.id, // 🔗 Link para o request
+         status: 'queued' as const,
+         // 🆕 CAMPOS ADICIONAIS
+         quantity: 1, // Cada creative individual tem quantidade 1
+         enable_variations: false, // Variação já foi aplicada
+         variation_style: undefined,
+       };
 
     // Criar o creative
     const { data: creative, error: creativeError } = await supabase
@@ -670,7 +803,8 @@ export async function createCreativeRequest(formData: CreateCreativeRequestData)
 
     createdJobs.push(job);
     console.log(`Queue job created for ${format}: ${job.id}`);
-  }
+    } // Fecha o loop de quantidade (for i)
+  } // Fecha o loop de formatos (for format)
 
   // 🎯 ETAPA 4: Atualizar status do request para 'processing'
   await supabase
@@ -680,156 +814,30 @@ export async function createCreativeRequest(formData: CreateCreativeRequestData)
 
   console.log(`Created ${createdCreatives.length} creatives and ${createdJobs.length} queue jobs`);
 
-  // 🚀 ETAPA 5: Auto-trigger do processamento
-  try {
-    console.log("Auto-triggering queue processing...");
-    await triggerQueueProcessing();
-    console.log("Queue processing triggered successfully");
-  } catch (error) {
-    console.warn("Failed to auto-trigger processing, will need manual trigger:", error);
-    // Não falhamos a criação se o trigger automático falhar
-  }
-
   console.log("--- [🚀 ACTION END: createCreativeRequest] ---\n");
 
   revalidatePath("/new");
   revalidatePath("/queue");
   
-  // Redireciona para a fila para acompanhar o processamento
-  redirect("/queue");
-}
-
-/**
- * 🚀 NOVA: Cria múltiplas variações de um criativo sem redirect automático
- * Permite ao usuário continuar criando outros criativos rapidamente
- */
-export async function createCreativeVariations(formData: CreateCreativeData) {
-  console.log("\n--- [🚀 ACTION START: createCreativeVariations] ---");
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    console.error("createCreativeVariations: User not authenticated.");
-    throw new Error("Usuário não autenticado.");
-  }
-
-  console.log(`User ID: ${user.id}`);
-  console.log(`Creating ${formData.quantity} variation(s)`);
-
-  // Valida os dados do formulário
-  const validationResult = createCreativeSchema.safeParse(formData);
-  
-  if (!validationResult.success) {
-    const errorMessages = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-    console.error("createCreativeVariations: Validation failed.", errorMessages);
-    throw new Error(`Erro de validação: ${errorMessages}`);
-  }
-
-  // 🎯 CORREÇÃO: Remover o campo 'quantity' do objeto antes de salvar no DB
-  const { quantity, ...creativeBaseData } = validationResult.data;
-  const createdCreatives = [];
-  const createdJobs = [];
-
-  // Criar múltiplas variações
-  for (let i = 1; i <= quantity; i++) {
-    const variationTitle = quantity > 1 
-      ? `${creativeBaseData.title} - Variação ${i}`
-      : creativeBaseData.title;
-
-    const creativeData = {
-      ...creativeBaseData, // Usar o objeto sem o campo 'quantity'
-      title: variationTitle,
-      user_id: user.id,
-      status: 'queued' as const,
-      product_images: JSON.stringify(creativeBaseData.product_images || []),
-    };
-
-    console.log(`Creating variation ${i}/${quantity}: ${variationTitle}`);
-
-    // Criar o criativo
-    const { data: creative, error: creativeError } = await supabase
-      .from("creatives")
-      .insert(creativeData)
-      .select()
-      .single();
-
-    if (creativeError) {
-      console.error(`Failed to create variation ${i}:`, creativeError);
-      // Em caso de erro, tentamos fazer rollback dos já criados
-      await rollbackCreatives(createdCreatives);
-      throw new Error(`Não foi possível criar a variação ${i}.`);
+  // 🚀 ETAPA 5: Auto-trigger do processamento (NÃO-BLOQUEANTE)
+  // Executa em background após retornar a resposta
+  Promise.resolve().then(async () => {
+    try {
+      console.log("Auto-triggering queue processing in background...");
+      await triggerQueueProcessing();
+      console.log("Queue processing triggered successfully");
+    } catch (error) {
+      console.warn("Failed to auto-trigger processing, will need manual trigger:", error);
     }
-
-    createdCreatives.push(creative);
-    console.log(`Creative variation ${i} created with ID: ${creative.id}`);
-
-    // Criar job na fila para este creative
-    const { data: job, error: jobError } = await supabase
-      .from("queue_jobs")
-      .insert({
-        creative_id: creative.id,
-        user_id: user.id,
-        status: 'pending',
-        priority: 5,
-      })
-      .select()
-      .single();
-
-    if (jobError) {
-      console.error(`Failed to create queue job for variation ${i}:`, jobError);
-      // Rollback em caso de erro
-      await rollbackCreatives(createdCreatives);
-      throw new Error(`Não foi possível adicionar a variação ${i} à fila de processamento.`);
-    }
-
-    createdJobs.push(job);
-    console.log(`Queue job created for variation ${i}: ${job.id}`);
-  }
-
-  console.log(`Successfully created ${createdCreatives.length} creative variations and ${createdJobs.length} queue jobs`);
-
-  // 🚀 Auto-trigger do processamento
-  try {
-    console.log("Auto-triggering queue processing...");
-    await triggerQueueProcessing();
-    console.log("Queue processing triggered successfully");
-  } catch (error) {
-    console.warn("Failed to auto-trigger processing, will need manual trigger:", error);
-    // Não falhamos a criação se o trigger automático falhar
-  }
-
-  console.log("--- [🚀 ACTION END: createCreativeVariations] ---\n");
-
-  revalidatePath("/new");
-  revalidatePath("/queue");
+  });
   
-  // 🎯 PRINCIPAL DIFERENÇA: NÃO faz redirect automático
-  // Retorna informações sobre o que foi criado
+  // Retorna sucesso imediatamente sem aguardar o trigger
   return { 
     success: true, 
-    created_count: createdCreatives.length,
-    creative_ids: createdCreatives.map(c => c.id),
-    job_ids: createdJobs.map(j => j.id)
+    request_id: creativeRequest.id,
+    creatives_count: createdCreatives.length,
+    message: `${createdCreatives.length} criativos criados com sucesso e adicionados à fila de processamento!`
   };
-}
-
-/**
- * Utilitário para fazer rollback de criativos em caso de erro
- */
-async function rollbackCreatives(creatives: any[]) {
-  if (creatives.length === 0) return;
-  
-  const supabase = await createClient();
-  const creativeIds = creatives.map(c => c.id);
-  
-  console.log(`Rolling back ${creativeIds.length} creatives: ${creativeIds.join(", ")}`);
-  
-  await supabase
-    .from("creatives")
-    .delete()
-    .in("id", creativeIds);
-    
-  console.log("Rollback completed");
 }
 
 /**

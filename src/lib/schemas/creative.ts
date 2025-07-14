@@ -86,12 +86,18 @@ export const createCreativeSchema = z.object({
     .or(z.literal("")),
   product_images: z.array(ProductImageSchema).default([]),
 
-  // 🚀 NOVO: Quantidade de variações do mesmo criativo
+  // 🆕 NOVOS CAMPOS: Quantidade e Variações (também para criativo individual)
   quantity: z.number()
-    .int("Quantidade deve ser um número inteiro")
-    .min(1, "Quantidade deve ser pelo menos 1")
-    .max(10, "Máximo 10 variações por vez")
+    .int()
+    .min(1, "Quantidade deve ser no mínimo 1")
+    .max(10, "Máximo 10 criativos")
     .default(1),
+    
+  enable_variations: z.boolean().default(false),
+  
+  variation_style: z.enum(['creative_diversity', 'prompt_variations', 'style_variations'])
+    .default('creative_diversity')
+    .optional(),
 });
 
 // 🚀 NOVO: Schema para criação de solicitações de MÚLTIPLOS FORMATOS
@@ -159,6 +165,19 @@ export const createCreativeRequestSchema = z.object({
       (formats) => new Set(formats).size === formats.length, 
       "Não é possível selecionar o mesmo formato duas vezes"
     ),
+
+  // 🆕 NOVOS CAMPOS: Quantidade e Variações
+  quantity: z.number()
+    .int()
+    .min(1, "Quantidade deve ser no mínimo 1")
+    .max(10, "Máximo 10 criativos por formato")
+    .default(1),
+    
+  enable_variations: z.boolean().default(false),
+  
+  variation_style: z.enum(['creative_diversity', 'prompt_variations', 'style_variations'])
+    .default('creative_diversity')
+    .optional(),
 });
 
 // Schema para atualização (todos os campos opcionais exceto ID)
@@ -234,6 +253,34 @@ export const MULTI_FORMAT_PRESETS = {
   }
 } as const;
 
+// 🆕 NOVO: Opções de variações
+export const VARIATION_STYLE_OPTIONS = {
+  creative_diversity: {
+    name: "Diversidade Criativa",
+    description: "Diferentes interpretações visuais da mesma ideia",
+    icon: "🎨"
+  },
+  prompt_variations: {
+    name: "Variações de Prompt",
+    description: "Diferentes descrições para criar visuais únicos",
+    icon: "✍️"
+  },
+  style_variations: {
+    name: "Variações de Estilo",
+    description: "Mesmo conceito em diferentes estilos artísticos",
+    icon: "🎭"
+  }
+} as const;
+
+// 🆕 NOVO: Presets de quantidade
+export const QUANTITY_PRESETS = [
+  { value: 1, label: "1 criativo", recommended: false },
+  { value: 2, label: "2 criativos", recommended: false },
+  { value: 3, label: "3 criativos", recommended: true },
+  { value: 5, label: "5 criativos", recommended: false },
+  { value: 10, label: "10 criativos", recommended: false },
+] as const;
+
 // Estilos predefinidos para seleção - EXPANDIDO com novos estilos
 export const CREATIVE_STYLES = [
   // 📋 ESTILOS ORIGINAIS (mantidos para compatibilidade)
@@ -289,7 +336,9 @@ export const defaultCreativeValues: CreateCreativeData = {
   headline: "",
   sub_headline: "",
   cta_text: "",
-  quantity: 1,
+  quantity: 1, // Default: 1 criativo
+  enable_variations: false, // Default: sem variações
+  variation_style: 'creative_diversity', // Default: diversidade criativa
 };
 
 // 🚀 NOVO: Valores padrão para creative request (múltiplos formatos)
@@ -306,4 +355,7 @@ export const defaultCreativeRequestValues: CreateCreativeRequestData = {
   sub_headline: "",
   cta_text: "",
   requested_formats: ['1:1'], // Default: apenas Feed
+  quantity: 1, // Default: 1 criativo por formato
+  enable_variations: false, // Default: sem variações
+  variation_style: 'creative_diversity', // Default: diversidade criativa
 }; 
