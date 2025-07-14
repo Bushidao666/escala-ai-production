@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__apply_migration",
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "mcp__supabase__list_tables",
+      "Bash(npm run build:*)",
+      "mcp__supabase__deploy_edge_function",
+      "Bash(npm run lint)",
+      "mcp__supabase__list_projects",
+      "Bash(rg:*)",
+      "Bash(rm:*)"
+    ],
+    "deny": []
+  }
+}

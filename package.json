@@ -52,7 +52,9 @@
     "use-debounce": "^10.0.5",
     "uuid": "10.0.0",
     "zod": "^3.22.4",
-    "zustand": "4.5.4"
+    "zustand": "4.5.4",
+    "eslint": "^9.29.0",
+    "eslint-config-next": "^15.3.4"
   },
   "devDependencies": {
     "@types/lodash": "4.17.7",
@@ -60,8 +62,6 @@
     "@types/react-dom": "^18.3.1",
     "@types/uuid": "10.0.0",
     "autoprefixer": "10.4.19",
-    "eslint": "^9.29.0",
-    "eslint-config-next": "^15.3.4",
     "postcss": "8.4.39",
     "prettier": "3.3.3",
     "tailwindcss": "3.4.6",
