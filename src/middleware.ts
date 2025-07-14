@@ -9,13 +9,18 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Se o usuário não estiver logado e tentar acessar uma rota protegida, redirecione para a página inicial
+  // Se o usuário não estiver logado e tentar acessar uma rota protegida, redirecione para o login
   if (
     !user &&
     !request.nextUrl.pathname.startsWith('/auth') &&
     request.nextUrl.pathname !== '/'
   ) {
-    return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.redirect(new URL('/auth/login', request.url))
+  }
+
+  // Se o usuário não estiver logado e tentar acessar a página inicial, redirecione para o login
+  if (!user && request.nextUrl.pathname === '/') {
+    return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
   return response
