@@ -132,10 +132,71 @@ export function UnifiedCreativeCard({ item, onUpdate, onPreview }: UnifiedCreati
     const statusConfig = REQUEST_STATUS_CONFIG[currentStatus];
     const StatusIcon = statusConfig.icon;
     
+    // 🆕 CÁLCULOS DETALHADOS DE PROGRESSO
     const completedCount = request.creatives.filter(c => c.status === 'completed').length;
+    const processingCount = request.creatives.filter(c => c.status === 'processing').length;
+    const queuedCount = request.creatives.filter(c => c.status === 'queued').length;
     const failedCount = request.creatives.filter(c => c.status === 'failed').length;
     const totalCount = request.creatives.length;
-    const progress = totalCount > 0 ? ((completedCount + failedCount) / totalCount) * 100 : 0;
+    
+    // Progresso baseado em completados + processando parcialmente + falhados
+    const progressValue = totalCount > 0 ? 
+      ((completedCount * 100) + (processingCount * 75) + (failedCount * 100)) / (totalCount * 100) * 100 : 0;
+    
+    // 🎯 STATUS DETALHADO PARA MELHOR UX
+    const getDetailedStatus = () => {
+      if (totalCount === 0) return { label: "Vazio", description: "Nenhum criativo" };
+      
+      if (completedCount === totalCount) {
+        return { 
+          label: "Concluído", 
+          description: `${completedCount}/${totalCount} criativos gerados`,
+          color: "text-brand-neon-green"
+        };
+      }
+      
+      if (failedCount === totalCount) {
+        return { 
+          label: "Falhou", 
+          description: `${failedCount}/${totalCount} criativos falharam`,
+          color: "text-red-400"
+        };
+      }
+      
+      if (completedCount + failedCount === totalCount) {
+        return { 
+          label: "Parcial", 
+          description: `${completedCount}/${totalCount} concluídos, ${failedCount} falharam`,
+          color: "text-blue-400"
+        };
+      }
+      
+      // Em progresso
+      const finishedCount = completedCount + failedCount;
+      if (processingCount > 0) {
+        return { 
+          label: "Processando", 
+          description: `${completedCount}/${totalCount} concluídos, ${processingCount} processando`,
+          color: "text-yellow-400"
+        };
+      }
+      
+      if (finishedCount > 0) {
+        return { 
+          label: "Processando", 
+          description: `${completedCount}/${totalCount} concluídos, ${queuedCount} na fila`,
+          color: "text-yellow-400"
+        };
+      }
+      
+      return { 
+        label: "Na Fila", 
+        description: `${totalCount} criativos aguardando processamento`,
+        color: "text-blue-400"
+      };
+    };
+    
+    const detailedStatus = getDetailedStatus();
 
     const handleReprocess = async () => {
       setIsActionLoading(true);
@@ -199,12 +260,34 @@ export function UnifiedCreativeCard({ item, onUpdate, onPreview }: UnifiedCreati
                   </h3>
                   <div className="flex items-center space-x-2 mt-1">
                     <Badge className={cn("text-xs font-medium", statusConfig.color)}>
-                      {statusConfig.label}
+                      <StatusIcon className={cn("w-3 h-3 mr-1", 
+                        (processingCount > 0) && 'animate-spin'
+                      )} />
+                      {detailedStatus.label}
                     </Badge>
+                    
+                    {/* Progresso Detalhado */}
+                    {processingCount > 0 && (
+                      <Badge className="text-xs bg-yellow-500/10 text-yellow-400 border-yellow-500/30">
+                        {processingCount} processando
+                      </Badge>
+                    )}
+                    
+                    {completedCount > 0 && (
+                      <Badge className="text-xs bg-brand-neon-green/10 text-brand-neon-green border-brand-neon-green/30">
+                        {completedCount}/{totalCount} ✓
+                      </Badge>
+                    )}
+                    
                     <span className="text-brand-gray-400 text-sm">
                       • {totalCount} formato{totalCount !== 1 ? 's' : ''}
                     </span>
                   </div>
+                  
+                  {/* Descrição Detalhada */}
+                  <p className={cn("text-sm mt-1", detailedStatus.color)}>
+                    {detailedStatus.description}
+                  </p>
                 </div>
               </div>
 
@@ -239,9 +322,9 @@ export function UnifiedCreativeCard({ item, onUpdate, onPreview }: UnifiedCreati
           <div className="mb-4">
             <div className="flex items-center justify-between text-xs text-brand-gray-400 mb-2">
               <span className="font-medium">{completedCount} de {totalCount} concluídos</span>
-              <span className="font-mono">{Math.round(progress)}%</span>
+              <span className="font-mono">{Math.round(progressValue)}%</span>
             </div>
-            <Progress value={progress} className="h-2 bg-brand-gray-800/50" />
+            <Progress value={progressValue} className="h-2 bg-brand-gray-800/50" />
           </div>
 
           {/* Grid de Criativos (Expansível) */}
@@ -326,6 +409,50 @@ export function UnifiedCreativeCard({ item, onUpdate, onPreview }: UnifiedCreati
       default: return 0;
     }
   };
+
+  // 🆕 STATUS DETALHADO PARA CRIATIVOS INDIVIDUAIS
+  const getIndividualDetailedStatus = () => {
+    switch (creative.status) {
+      case 'completed':
+        return {
+          label: statusConfig.label,
+          description: "Criativo gerado com sucesso",
+          color: "text-brand-neon-green"
+        };
+      case 'processing':
+        return {
+          label: statusConfig.label,
+          description: "IA gerando criativo...",
+          color: "text-yellow-400"
+        };
+      case 'queued':
+        return {
+          label: statusConfig.label,
+          description: "Aguardando processamento",
+          color: "text-blue-400"
+        };
+      case 'failed':
+        return {
+          label: statusConfig.label,
+          description: creative.error_message || "Erro durante o processamento",
+          color: "text-red-400"
+        };
+      case 'draft':
+        return {
+          label: statusConfig.label,
+          description: "Salvo como rascunho",
+          color: "text-brand-gray-400"
+        };
+      default:
+        return {
+          label: statusConfig.label,
+          description: "Status desconhecido",
+          color: "text-brand-gray-400"
+        };
+    }
+  };
+
+  const individualDetailedStatus = getIndividualDetailedStatus();
 
   const handleReprocess = async () => {
     setIsActionLoading(true);
@@ -425,17 +552,25 @@ export function UnifiedCreativeCard({ item, onUpdate, onPreview }: UnifiedCreati
                     {creative.title}
                   </h3>
                   <Badge className={cn("text-sm", statusConfig.color)}>
-                    {statusConfig.label}
+                    <StatusIcon className={cn("w-3 h-3 mr-1", 
+                      creative.status === 'processing' && 'animate-spin'
+                    )} />
+                    {individualDetailedStatus.label}
                   </Badge>
                   <Badge className="bg-brand-gray-700/50 text-brand-gray-300 border-brand-gray-600/50 text-xs">
                     {FORMAT_LABELS[(creative.format || 'post_1080x1080') as keyof typeof FORMAT_LABELS] || creative.format || 'Formato'}
                   </Badge>
                 </div>
 
+                {/* Status Detalhado */}
+                <p className={cn("text-sm mb-3", individualDetailedStatus.color)}>
+                  {individualDetailedStatus.description}
+                </p>
+
                 {/* Progress Bar */}
                 <div className="mb-4">
                   <div className="flex items-center justify-between text-xs text-brand-gray-400 mb-2">
-                    <span>{statusConfig.label}</span>
+                    <span>{individualDetailedStatus.label}</span>
                     <span className="font-mono">{getProgress()}%</span>
                   </div>
                   <Progress value={getProgress()} className="h-1.5 bg-brand-gray-800/50" />

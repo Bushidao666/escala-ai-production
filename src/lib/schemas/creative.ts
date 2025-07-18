@@ -267,7 +267,7 @@ export const VARIATION_STYLE_OPTIONS = {
   },
   style_variations: {
     name: "Variações de Estilo",
-    description: "Mesmo conceito em diferentes estilos artísticos",
+    description: "Cada criativo usará um preset de estilo diferente (GTA, Anime, Cyberpunk, etc.)",
     icon: "🎭"
   }
 } as const;

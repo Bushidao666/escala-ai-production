@@ -9,7 +9,9 @@ import {
   FORMAT_TO_SIZE_MAP,
   // 🚀 NOVAS IMPORTAÇÕES para múltiplos formatos
   createCreativeRequestSchema,
-  type CreateCreativeRequestData
+  type CreateCreativeRequestData,
+  // 🆕 NOVA IMPORTAÇÃO para variações de estilo
+  CREATIVE_STYLES
 } from "@/lib/schemas/creative";
 
 /**
@@ -53,22 +55,31 @@ function applyVariationToPrompt(
       return `${basePrompt}${promptModifiers[modifierIndex]}`;
       
     case 'style_variations':
-      const styleVariations = [
-        "In a photorealistic style: ",
-        "In a artistic illustration style: ",
-        "In a modern digital art style: ",
-        "In a vintage retro style: ",
-        "In a minimalist contemporary style: ",
-        "In a bold graphic design style: ",
-        "In a watercolor painting style: ",
-        "In a professional commercial style: "
-      ];
-      const styleIndex = (index - 1) % styleVariations.length;
-      return `${styleVariations[styleIndex]}${basePrompt}`;
+      // 🎯 MUDANÇA CRÍTICA: Para style_variations, NÃO modificamos o prompt
+      // A variação será aplicada no campo 'style' do creative, não no prompt
+      return basePrompt;
       
     default:
       return basePrompt;
   }
+}
+
+/**
+ * 🆕 NOVA: Seleciona um estilo aleatório para variações baseado nos presets disponíveis
+ * @param originalStyle - Estilo original selecionado pelo usuário
+ * @param index - Índice do criativo (1, 2, 3, etc.) para garantir consistência
+ * @param excludeOriginal - Se deve excluir o estilo original das opções
+ * @returns Estilo selecionado dos CREATIVE_STYLES
+ */
+function getRandomStyleForVariation(originalStyle: string, index: number, excludeOriginal: boolean = true): string {
+  const availableStyles = excludeOriginal 
+    ? CREATIVE_STYLES.filter(style => style !== originalStyle)
+    : [...CREATIVE_STYLES]; // Cria uma cópia para não modificar o array original
+  
+  // Usar index como seed para garantir consistência nas mesmas variações
+  // Mesma solicitação sempre produzirá os mesmos estilos na mesma ordem
+  const selectedIndex = (index - 1) % availableStyles.length;
+  return availableStyles[selectedIndex];
 }
 
 /**
@@ -152,15 +163,25 @@ export async function getUserDefaults() {
     return {
       quality: 'auto' as const,
       output_format: 'png' as const,
-      output_compression: 90,
+      output_compression: 100, // 🚨 CORRIGIDO: PNG sempre usa 100
       background: 'auto' as const,
     };
   }
 
+  // 🚨 CORREÇÃO CRÍTICA: OpenAI não aceita compressão < 100 para PNG
+  const outputFormat = (settings?.default_output_format as any) || 'png';
+  let outputCompression = settings?.default_output_compression || 90;
+  
+  // Força compressão = 100 para PNG (regra do OpenAI)
+  if (outputFormat === 'png' && outputCompression < 100) {
+    outputCompression = 100;
+    console.log(`⚠️  Adjusted compression from ${settings?.default_output_compression} to 100 for PNG format`);
+  }
+
   return {
     quality: (settings?.default_quality as any) || 'auto',
-    output_format: (settings?.default_output_format as any) || 'png',
-    output_compression: settings?.default_output_compression || 90,
+    output_format: outputFormat,
+    output_compression: outputCompression,
     background: (settings?.default_background as any) || 'auto',
   };
 }
@@ -222,7 +243,7 @@ export async function saveDraft(formData: CreateCreativeData) {
  * Cria um criativo e adiciona à fila de processamento
  */
 export async function createCreative(formData: CreateCreativeData) {
-  console.log("\n--- [ACTION START: createCreative] ---");
+  console.log("\n--- [ACTION START: createCreative - Request-Based Flow] ---");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -242,116 +263,37 @@ export async function createCreative(formData: CreateCreativeData) {
     throw new Error(`Erro de validação: ${errorMessages}`);
   }
 
-  const creativeData = {
-    ...validationResult.data,
-    user_id: user.id,
-    status: 'queued' as const,
-    product_images: JSON.stringify(validationResult.data.product_images || []),
+  console.log("Validation successful, converting to request-based flow...");
+
+  // 🚀 CONVERTER PARA REQUEST-BASED: Mesmo sendo formato único, criar um request
+  const requestData: CreateCreativeRequestData = {
+    title: validationResult.data.title,
+    description: validationResult.data.description,
+    prompt: validationResult.data.prompt,
+    style: validationResult.data.style,
+    primary_color: validationResult.data.primary_color,
+    secondary_color: validationResult.data.secondary_color,
+    headline: validationResult.data.headline,
+    sub_headline: validationResult.data.sub_headline,
+    cta_text: validationResult.data.cta_text,
+    logo_url: validationResult.data.logo_url,
+    product_images: validationResult.data.product_images,
+    // Converter formato único em array
+    requested_formats: [validationResult.data.format],
+    // Novos campos
+    quantity: validationResult.data.quantity || 1,
+    enable_variations: validationResult.data.enable_variations || false,
+    variation_style: validationResult.data.variation_style || 'creative_diversity'
   };
 
-  console.log("Data to be saved:", JSON.stringify(creativeData, null, 2));
+  console.log("Converted to request data, delegating to createCreativeRequest...");
 
-  // 🆕 NOVA LÓGICA: Suporte a quantidade e variações para modo single format
-  const quantity = validationResult.data.quantity || 1;
-  const enableVariations = validationResult.data.enable_variations || false;
-  const variationStyle = validationResult.data.variation_style || 'creative_diversity';
+  // 🚀 DELEGAR PARA createCreativeRequest (fluxo unificado)
+  const result = await createCreativeRequest(requestData);
   
-  console.log(`Creating ${quantity} creative(s) for single format mode`);
-  console.log(`Variations enabled: ${enableVariations}, Style: ${variationStyle}`);
-
-  const createdCreatives = [];
+  console.log("--- [ACTION END: createCreative - Delegated to Request Flow] ---\n");
   
-  // Cria a quantidade especificada de criativos
-  for (let i = 1; i <= quantity; i++) {
-    console.log(`Creating creative ${i}/${quantity}`);
-    
-    // Prepara dados específicos para esta variação
-    let variantData = { ...creativeData };
-    
-    if (quantity > 1) {
-      variantData.title = `${creativeData.title} (${i}/${quantity})`;
-      
-      if (enableVariations) {
-        variantData.prompt = applyVariationToPrompt(creativeData.prompt, variationStyle, i, quantity);
-      }
-    }
-    
-    // Remove campos de controle (não devem ir para o banco)
-    const { quantity: _, enable_variations: __, variation_style: ___, ...cleanData } = variantData;
-
-    // Cria criativo individual
-    const { data: creative, error: creativeError } = await supabase
-      .from("creatives")
-      .insert(cleanData)
-      .select()
-      .single();
-
-    if (creativeError) {
-      console.error("createCreative: Failed to create creative:", creativeError);
-      
-      // Rollback: remove criativos já criados
-      for (const prevCreative of createdCreatives) {
-        await supabase.from("creatives").delete().eq("id", prevCreative.id);
-        await supabase.from("queue_jobs").delete().eq("creative_id", prevCreative.id);
-      }
-      
-      throw new Error(`Não foi possível criar o criativo ${i}/${quantity}.`);
-    }
-
-    console.log(`Creative ${i}/${quantity} created successfully with ID: ${creative.id}`);
-    createdCreatives.push(creative);
-
-    // Cria job na fila de processamento
-    const { error: jobError } = await supabase
-      .from("queue_jobs")
-      .insert({
-        creative_id: creative.id,
-        user_id: user.id,
-        status: 'pending',
-        priority: 5, // Prioridade padrão
-      });
-
-    if (jobError) {
-      console.error("createCreative: Failed to create queue job:", jobError);
-      
-      // Rollback: remove criativos já criados
-      for (const prevCreative of createdCreatives) {
-        await supabase.from("creatives").delete().eq("id", prevCreative.id);
-        await supabase.from("queue_jobs").delete().eq("creative_id", prevCreative.id);
-      }
-      
-      throw new Error(`Não foi possível adicionar o criativo ${i}/${quantity} à fila de processamento.`);
-    }
-
-    console.log(`Queue job created successfully for creative ${i}/${quantity}`);
-  }
-
-  console.log(`All ${quantity} creatives created successfully`);
-
-  console.log("--- [ACTION END: createCreative] ---\n");
-
-  revalidatePath("/new");
-  revalidatePath("/queue");
-  
-  // 🚀 Auto-trigger do processamento (NÃO-BLOQUEANTE)
-  // Executa em background após retornar a resposta
-  Promise.resolve().then(async () => {
-    try {
-      console.log("Auto-triggering queue processing in background...");
-      await triggerQueueProcessing();
-      console.log("Queue processing triggered successfully");
-    } catch (error) {
-      console.warn("Failed to auto-trigger processing, will need manual trigger:", error);
-    }
-  });
-  
-  // Retorna sucesso imediatamente sem aguardar o trigger
-  return { 
-    success: true, 
-    creative_ids: createdCreatives.map(c => c.id),
-    creatives_count: createdCreatives.length,
-    message: `${createdCreatives.length} criativo(s) criado(s) com sucesso e adicionado(s) à fila de processamento!`
-  };
+  return result;
 }
 
 /**
@@ -484,7 +426,7 @@ export async function deleteCreative(creativeId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
+  if (!user) { 
     throw new Error("Usuário não autenticado.");
   }
 
@@ -723,9 +665,10 @@ export async function createCreativeRequest(formData: CreateCreativeRequestData)
     for (let i = 1; i <= quantity; i++) {
       console.log(`Creating creative ${i}/${quantity} for format: ${format}`);
 
-       // 🆕 NOVA LÓGICA: Modificar título e prompt baseado na variação
+       // 🆕 NOVA LÓGICA: Modificar título, prompt e estilo baseado na variação
        let creativeTitle = `${requestData.title} - ${format}`;
        let creativePrompt = requestData.prompt;
+       let creativeStyle = requestData.style || "Moderno";
        
        if (quantity > 1) {
          creativeTitle += ` (${i}/${quantity})`;
@@ -733,37 +676,43 @@ export async function createCreativeRequest(formData: CreateCreativeRequestData)
          if (enableVariations) {
            // Aplica variações baseadas no estilo selecionado
            creativePrompt = applyVariationToPrompt(requestData.prompt, variationStyle, i, quantity);
+           
+           // 🎯 NOVA LÓGICA: Para style_variations, aplicar variação no campo style
+           if (variationStyle === 'style_variations') {
+             creativeStyle = getRandomStyleForVariation(requestData.style || "Moderno", i, true);
+             console.log(`Applied style variation ${i}/${quantity}: ${creativeStyle}`);
+           }
          }
        }
 
-       // Dados do creative individual (baseado no request)
-       const creativeData = {
+         // Dados do creative individual (baseado no request)
+     const creativeData = {
          title: creativeTitle,
-         description: requestData.description || undefined,
+       description: requestData.description || undefined,
          prompt: creativePrompt,
-         style: requestData.style || "Moderno",
-         primary_color: requestData.primary_color || undefined,
-         secondary_color: requestData.secondary_color || undefined,
-         headline: requestData.headline || undefined,
-         sub_headline: requestData.sub_headline || undefined,
-         cta_text: requestData.cta_text || undefined,
-         logo_url: requestData.logo_url || undefined,
-         product_images: requestData.product_images,
-         format: format,
-         // Aplicar configurações padrão do usuário
-         quality: userDefaults.quality,
-         output_format: userDefaults.output_format,
-         output_compression: userDefaults.output_compression,
-         background: userDefaults.background,
-         // Metadados
-         user_id: user.id,
-         request_id: creativeRequest.id, // 🔗 Link para o request
-         status: 'queued' as const,
+       style: creativeStyle,
+       primary_color: requestData.primary_color || undefined,
+       secondary_color: requestData.secondary_color || undefined,
+       headline: requestData.headline || undefined,
+       sub_headline: requestData.sub_headline || undefined,
+       cta_text: requestData.cta_text || undefined,
+       logo_url: requestData.logo_url || undefined,
+       product_images: requestData.product_images,
+      format: format,
+      // Aplicar configurações padrão do usuário
+      quality: userDefaults.quality,
+      output_format: userDefaults.output_format,
+      output_compression: userDefaults.output_compression,
+      background: userDefaults.background,
+      // Metadados
+      user_id: user.id,
+      request_id: creativeRequest.id, // 🔗 Link para o request
+      status: 'queued' as const,
          // 🆕 CAMPOS ADICIONAIS
          quantity: 1, // Cada creative individual tem quantidade 1
          enable_variations: false, // Variação já foi aplicada
          variation_style: undefined,
-       };
+    };
 
     // Criar o creative
     const { data: creative, error: creativeError } = await supabase
@@ -822,12 +771,12 @@ export async function createCreativeRequest(formData: CreateCreativeRequestData)
   // 🚀 ETAPA 5: Auto-trigger do processamento (NÃO-BLOQUEANTE)
   // Executa em background após retornar a resposta
   Promise.resolve().then(async () => {
-    try {
+  try {
       console.log("Auto-triggering queue processing in background...");
-      await triggerQueueProcessing();
-      console.log("Queue processing triggered successfully");
-    } catch (error) {
-      console.warn("Failed to auto-trigger processing, will need manual trigger:", error);
+    await triggerQueueProcessing();
+    console.log("Queue processing triggered successfully");
+  } catch (error) {
+    console.warn("Failed to auto-trigger processing, will need manual trigger:", error);
     }
   });
   
