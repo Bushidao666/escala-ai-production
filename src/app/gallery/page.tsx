@@ -50,6 +50,8 @@ import { deleteCreative } from "@/app/new/actions";
 import { type GalleryFilters } from "./gallery.types";
 import { CreativeLightbox } from "./CreativeLightbox";
 import { UnifiedGalleryCard } from "./UnifiedGalleryCard";
+import { useCreativeDownload } from "@/hooks/useCreativeDownload";
+import { ProgressModal } from "@/components/ui/progress-modal";
 
 
 import { FORMAT_LABELS } from "@/lib/schemas/creative";
@@ -148,7 +150,9 @@ function PremiumControlSidebar({
   setSidebarCollapsed,
   handleSelectAll,
   handleDeleteSelected,
-  isDeleting
+  isDeleting,
+  handleDownloadSelected,
+  isDownloading
 }: {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
@@ -175,6 +179,8 @@ function PremiumControlSidebar({
   handleSelectAll: () => void;
   handleDeleteSelected: () => void;
   isDeleting: boolean;
+  handleDownloadSelected: () => void;
+  isDownloading: boolean;
 }) {
   return (
     <div className={cn(
@@ -715,9 +721,28 @@ function PremiumControlSidebar({
                   </Button>
                   
                   <Button
+                    onClick={handleDownloadSelected}
+                    disabled={isDownloading || selectedIds.length === 0}
+                    className="w-full btn-ghost text-blue-400 hover:bg-blue-500/10 h-10 justify-start disabled:opacity-50"
+                    title={`Baixar ${selectedIds.length} criativos em ZIP organizado por formato`}
+                  >
+                    {isDownloading ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Baixando ZIP...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 mr-2" />
+                        Baixar ZIP ({selectedIds.length})
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button
                     onClick={handleDeleteSelected}
-                    disabled={isDeleting}
-                    className="w-full btn-ghost text-red-400 hover:bg-red-500/10 h-10 justify-start"
+                    disabled={isDeleting || isDownloading}
+                    className="w-full btn-ghost text-red-400 hover:bg-red-500/10 h-10 justify-start disabled:opacity-50"
                   >
                     {isDeleting ? (
                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
@@ -887,6 +912,18 @@ export default function GalleryPage() {
   const [favorites, setFavorites] = useState<string[]>([]);
 
   const [previewMode, setPreviewMode] = useState(false);
+  
+  // 📥 Download Hook
+  const { 
+    downloadSelectedCreatives, 
+    isDownloading, 
+    progress, 
+    showModal,
+    estimatedSize,
+    setShowModal,
+    cancelDownload,
+    getEstimatedSize 
+  } = useCreativeDownload();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   
   // Lightbox State
@@ -1079,6 +1116,22 @@ export default function GalleryPage() {
     }
   };
 
+  // 📥 Download handler
+  const handleDownloadSelected = async () => {
+    if (selectedIds.length === 0) {
+      toast.warning("Selecione ao menos um criativo para download");
+      return;
+    }
+
+    try {
+      await downloadSelectedCreatives(selectedIds);
+      // Success handling is done by the hook via toasts
+    } catch (error: any) {
+      console.error("Erro no download:", error);
+      // Error handling is done by the hook via toasts
+    }
+  };
+
   const allLightboxImages = useMemo(() => {
     return creatives.flatMap(item => 
       item.type === 'request'
@@ -1197,6 +1250,8 @@ export default function GalleryPage() {
         handleSelectAll={handleSelectAll}
         handleDeleteSelected={handleDeleteSelected}
         isDeleting={isDeleting}
+        handleDownloadSelected={handleDownloadSelected}
+        isDownloading={isDownloading}
       />
 
       {/* Main Content Area */}
@@ -1461,6 +1516,16 @@ export default function GalleryPage() {
             totalResults={totalCount}
           />
         )}
+
+        {/* Progress Modal for Downloads */}
+        <ProgressModal
+          isOpen={showModal}
+          onOpenChange={setShowModal}
+          progress={progress}
+          selectedCount={selectedIds.length}
+          estimatedSize={estimatedSize}
+          onCancel={cancelDownload}
+        />
 
         {lightboxOpen && (
           <CreativeLightbox
