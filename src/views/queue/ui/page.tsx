@@ -52,9 +52,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/shared/lib/utils";
-import { getUserCreatives, reprocessCreative, deleteCreative, triggerQueueProcessing, getUserCreativeRequests, fixInconsistentRequestStatuses } from "../new/actions";
+import { getUserCreatives, reprocessCreative, deleteCreative, triggerQueueProcessing, getUserCreativeRequests, fixInconsistentRequestStatuses } from "@/modules/creative/application/actions";
 import { FORMAT_LABELS } from "@/modules/creative/dto/creative.schema";
-import { UnifiedCreativeCard } from "./UnifiedCreativeCard";
+import { UnifiedCreativeCard } from "@/entities/job/ui/job-card";
 import { useSupabaseRealtime } from '@/shared/hooks/useSupabaseRealtime';
 import { Tables } from '@/shared/infra/supabase/supabase.types';
 

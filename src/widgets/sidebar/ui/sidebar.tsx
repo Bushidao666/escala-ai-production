@@ -18,7 +18,7 @@ import {
   ChevronLeft,
   Menu
 } from "lucide-react";
-import { signOut } from "@/app/auth/actions";
+import { signOut } from "@/modules/auth/public-api";
 import { createClient } from "@/shared/infra/supabase/client";
 import React, { useState, useEffect } from "react";
 import { cn } from "@/shared/lib/utils";

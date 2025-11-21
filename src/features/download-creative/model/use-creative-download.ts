@@ -1,13 +1,13 @@
 import { useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import { getSelectedCreativesForDownload } from '@/app/gallery/actions';
+import { getSelectedCreativesForDownload } from '@/modules/gallery/application/actions';
 import { 
   createOrganizedCreativesZip, 
   estimateZipSize, 
   type DownloadProgress, 
   type DownloadResult,
   type CreativeForDownload 
-} from '@/shared/lib/utils/zipUtils';
+} from '@/shared/lib/zipUtils';
 
 export interface UseCreativeDownloadReturn {
   // Estado do download

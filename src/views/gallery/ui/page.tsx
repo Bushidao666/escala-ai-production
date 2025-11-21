@@ -12,6 +12,7 @@ import { CreativeLightbox } from "./CreativeLightbox";
 import { useCreativeDownload } from "@/features/download-creative/model/use-creative-download";
 import { ProgressModal } from "@/shared/ui/progress-modal";
 import { FORMAT_LABELS } from "@/modules/creative/dto/creative.schema";
+import { GalleryItem } from "@/modules/gallery/domain/entities";
 
 // Widgets
 import { PremiumControlSidebar } from "@/widgets/gallery-controls";
@@ -33,7 +34,6 @@ import {
 // Types
 type ViewMode = 'masonry' | 'grid' | 'list';
 type SortOption = 'newest' | 'oldest' | 'title' | 'status';
-type GalleryItem = any; // Using any for now to match existing loose typing in original file
 
 export default function GalleryPage() {
   // Core State

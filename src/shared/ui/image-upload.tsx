@@ -5,7 +5,7 @@ import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
 import { Button } from "@/shared/ui/button";
 import { Progress } from "@/shared/ui/progress";
-import { uploadFile } from "@/app/new/actions";
+import { uploadFile } from "@/modules/creative/application/actions";
 import { 
   UploadCloud, 
   X, 

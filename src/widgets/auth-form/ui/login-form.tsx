@@ -7,7 +7,7 @@ import { Label } from "@/shared/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import { Flame, Mail, Lock, Eye, EyeOff, Sparkles, Zap, AlertCircle, CheckCircle } from "lucide-react";
-import { signInWithPassword, signInWithOtp } from "@/app/auth/actions"; // Caminho ajustado para ser absoluto
+import { signInWithPassword, signInWithOtp } from "@/modules/auth/public-api"; // Caminho ajustado para ser absoluto
 import Link from "next/link";
 import { cn } from "@/shared/lib/utils";
 

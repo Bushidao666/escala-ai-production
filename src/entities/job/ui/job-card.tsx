@@ -26,7 +26,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/shared/lib/utils";
 import { FORMAT_LABELS } from "@/modules/creative/dto/creative.schema";
-import { reprocessCreative, deleteCreative, reprocessCreativeRequest, deleteCreativeRequest } from "../new/actions";
+import { reprocessCreative, deleteCreative, reprocessCreativeRequest, deleteCreativeRequest } from "@/modules/creative/application/actions";
 import { Tables } from '@/shared/infra/supabase/supabase.types';
 
 // Types

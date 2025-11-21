@@ -71,7 +71,7 @@ async function executeSmartStatusUpdate(requestId: string) {
     console.log(`🧠 [Smart Update] Triggering status update for request: ${requestId}`);
     
     // Importa dinamicamente a action (evita circular dependency)
-    const { smartUpdateRequestStatus } = await import('@/app/new/actions');
+    const { smartUpdateRequestStatus } = await import('@/modules/creative/application/actions');
     await smartUpdateRequestStatus(requestId);
     
     console.log(`✅ [Smart Update] Request ${requestId} status updated successfully`);
