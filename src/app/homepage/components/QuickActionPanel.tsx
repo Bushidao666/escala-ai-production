@@ -3,9 +3,9 @@
 import { motion } from 'framer-motion'
 import { Plus, Zap, Clock, Image, BarChart3, Settings, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
+import { Button } from '@/shared/ui/button'
+import { Card, CardContent } from '@/shared/ui/card'
+import { cn } from '@/shared/lib/utils'
 
 const quickActions = [
   {

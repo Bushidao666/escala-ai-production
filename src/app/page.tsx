@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { getDashboardData, DashboardData, getRecentCreatives } from './homepage/actions'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/shared/infra/supabase/client'
 import { User } from '@supabase/supabase-js'
 import { IntelligentInsights } from './homepage/components/InsightsCarousel'
 import { RecentActivityFeed } from './homepage/components/RecentActivityFeed'
@@ -17,9 +17,9 @@ import {
   Keyboard, ArrowUp
 } from 'lucide-react'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
+import { Button } from '@/shared/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import { cn } from '@/shared/lib/utils'
 
 // SISTEMA DE SPACING UNIFICADO
 const SPACING = {

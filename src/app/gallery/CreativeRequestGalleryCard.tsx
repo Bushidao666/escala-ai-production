@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useCallback } from 'react';
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/shared/ui/card";
+import { Badge } from "@/shared/ui/badge";
+import { Button } from "@/shared/ui/button";
 import { 
   Eye, 
   Download,
@@ -13,8 +13,8 @@ import {
   Share2,
   Heart
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { FORMAT_LABELS } from "@/lib/schemas/creative";
+import { cn } from "@/shared/lib/utils";
+import { FORMAT_LABELS } from "@/modules/creative/dto/creative.schema";
 import useEmblaCarousel from 'embla-carousel-react';
 
 type Creative = {

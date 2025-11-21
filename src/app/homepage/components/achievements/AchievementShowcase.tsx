@@ -4,11 +4,11 @@ import { motion } from 'framer-motion'
 import { Trophy, ChevronRight, Star, Calendar, Target, Award } from 'lucide-react'
 import { useState } from 'react'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/shared/ui/button'
 import { Achievement } from '../../types'
 import { AchievementCard, NextAchievementCard } from '../AchievementCard'
 import { getCategoryIcon } from '../../utils/achievementIcons'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 
 // SISTEMA DE SPACING HARMONIZADO
 const SPACING = {

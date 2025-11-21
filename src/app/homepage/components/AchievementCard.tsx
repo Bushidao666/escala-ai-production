@@ -1,7 +1,7 @@
 'use client'
 
 import { Sparkles, Clock, Trophy } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 import { Achievement } from '../types'
 import { getAchievementIcon, getRarityColors } from '../utils/achievementIcons'
 

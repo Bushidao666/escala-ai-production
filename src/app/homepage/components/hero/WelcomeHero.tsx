@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion'
 import { User, Plus, Grid3X3, Clock, Target, Flame, Trophy, Zap, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/shared/ui/button'
 import { UserStat } from '../../types'
 
 interface WelcomeHeroProps {

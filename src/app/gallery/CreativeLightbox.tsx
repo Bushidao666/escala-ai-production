@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogTitle } from '@/shared/ui/dialog';
+import { Button } from '@/shared/ui/button';
+import { Badge } from '@/shared/ui/badge';
+import { ScrollArea } from '@/shared/ui/scroll-area';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import {
   X,
   Copy,
@@ -39,8 +39,8 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { toast } from "sonner";
-import { cn } from '@/lib/utils';
-import { FORMAT_LABELS } from '@/lib/schemas/creative';
+import { cn } from '@/shared/lib/utils';
+import { FORMAT_LABELS } from '@/modules/creative/dto/creative.schema';
 
 // Tipagem otimizada para o lightbox
 type CreativeForLightbox = {

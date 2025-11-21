@@ -2,7 +2,7 @@
 
 import { IconProps } from '@radix-ui/react-icons'
 import { motion } from 'framer-motion'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 
 interface StatCardProps {
   title: string

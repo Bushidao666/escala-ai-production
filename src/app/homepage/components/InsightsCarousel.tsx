@@ -17,8 +17,8 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { Insight } from '../types'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+import { cn } from '@/shared/lib/utils'
+import { Button } from '@/shared/ui/button'
 
 // SISTEMA DE SPACING HARMONIZADO
 const SPACING = {
