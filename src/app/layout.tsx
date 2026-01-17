@@ -1,14 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/sidebar";
-import { Toaster } from "@/components/ui/sonner";
-import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/server";
-import { AnimatedBackground } from '@/components/ui/animated-background';
+import Sidebar from "@/widgets/sidebar/ui/sidebar";
+import { Toaster } from "@/shared/ui/sonner";
+import { cn } from "@/shared/lib/utils";
+import { createClient } from "@/shared/infra/supabase/server";
+import { AnimatedBackground } from '@/shared/ui/animated-background';
 import { headers } from 'next/headers';
 import { SpeedInsights } from "@vercel/speed-insights/next"
-import { RealtimeStatusIndicator } from '@/components/ui/RealtimeStatusIndicator';
+import { RealtimeStatusIndicator } from '@/shared/ui/RealtimeStatusIndicator';
 import { ThemeProvider } from "next-themes";
 
 const inter = Inter({ 

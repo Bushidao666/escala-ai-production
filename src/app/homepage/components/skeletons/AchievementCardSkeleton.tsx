@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 
 export function AchievementCardSkeleton({ className }: { className?: string }) {
   return (

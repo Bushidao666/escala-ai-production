@@ -16,7 +16,7 @@ import {
   Calendar
 } from 'lucide-react'
 import { RecentActivity } from '../types'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 
 // SISTEMA DE SPACING HARMONIZADO
 const SPACING = {
